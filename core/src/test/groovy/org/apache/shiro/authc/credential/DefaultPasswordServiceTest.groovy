@@ -91,12 +91,25 @@ class DefaultPasswordServiceTest {
     @Test
     void testPasswordsMatchWithNullOrEmpty() {
         def service = new DefaultPasswordService()
-        assertTrue service.passwordsMatch(null, (String) null)
-        assertTrue service.passwordsMatch(null, (Hash) null)
-        assertTrue service.passwordsMatch("", (String) null)
-        assertTrue service.passwordsMatch(null, "")
+        assertFalse service.passwordsMatch(null, (String) null)
+        assertFalse service.passwordsMatch(null, (Hash) null)
+        assertFalse service.passwordsMatch("", (String) null)
+        assertFalse service.passwordsMatch(null, "")
         assertFalse service.passwordsMatch(null, "12345")
         assertFalse service.passwordsMatch(null, new Sha1Hash("test"))
+    }
+
+    @Test
+    void testEmptyPasswordNeverMatchesEmptySavedPassword() {
+        def service = new DefaultPasswordService()
+        // an empty submitted password must never authenticate against an empty or missing stored password
+        assertFalse service.passwordsMatch("", "")
+        assertFalse service.passwordsMatch(new char[0], "")
+        assertFalse service.passwordsMatch(new byte[0], "")
+        assertFalse service.passwordsMatch("", (Hash) null)
+        assertFalse service.passwordsMatch(new char[0], new Sha1Hash())
+        // a regular password still matches its stored hash
+        assertTrue service.passwordsMatch("12345", service.encryptPassword("12345"))
     }
 
     @Test

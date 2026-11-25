@@ -85,7 +85,7 @@ public class DefaultPasswordService implements HashingPasswordService {
         ByteSource plaintextBytes = createByteSource(plaintext);
 
         if (saved == null || saved.isEmpty()) {
-            return plaintextBytes == null || plaintextBytes.isEmpty();
+            return false;
         } else {
             if (plaintextBytes == null || plaintextBytes.isEmpty()) {
                 return false;
@@ -136,8 +136,8 @@ public class DefaultPasswordService implements HashingPasswordService {
     public boolean passwordsMatch(Object submittedPlaintext, String saved) {
         ByteSource plaintextBytes = createByteSource(submittedPlaintext);
 
-        if (saved == null || saved.length() == 0) {
-            return plaintextBytes == null || plaintextBytes.isEmpty();
+        if (saved == null || saved.isEmpty()) {
+            return false;
         } else {
             if (plaintextBytes == null || plaintextBytes.isEmpty()) {
                 return false;

@@ -20,6 +20,8 @@ package org.apache.shiro.authc.credential
 
 import org.apache.shiro.authc.AuthenticationInfo
 import org.apache.shiro.authc.AuthenticationToken
+import org.apache.shiro.authc.SimpleAuthenticationInfo
+import org.apache.shiro.authc.UsernamePasswordToken
 import org.apache.shiro.crypto.hash.Sha256Hash
 import org.junit.Test
 
@@ -176,6 +178,15 @@ class PasswordMatcherTest {
 
         verify token, info, service
 
+    }
+
+    @Test
+    void testEmptySubmittedPasswordDoesNotMatchEmptyStoredPassword() {
+        def matcher = new PasswordMatcher()
+        def token = new UsernamePasswordToken("user", "")
+        assertFalse matcher.doCredentialsMatch(token, new SimpleAuthenticationInfo("user", "", "realm"))
+        assertFalse matcher.doCredentialsMatch(token, new SimpleAuthenticationInfo("user", new char[0], "realm"))
+        assertFalse matcher.doCredentialsMatch(token, new SimpleAuthenticationInfo("user", new Sha256Hash(), "realm"))
     }
 
 }
