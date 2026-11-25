@@ -19,6 +19,7 @@
 package org.apache.shiro.realm.text;
 
 import org.apache.shiro.ShiroException;
+import org.apache.shiro.cache.Cache;
 import org.apache.shiro.io.ResourceUtils;
 import org.apache.shiro.util.Destroyable;
 import org.slf4j.Logger;
@@ -277,8 +278,14 @@ public class PropertiesRealm extends TextConfigurationRealm implements Destroyab
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private void restart() {
+    /**
+     * Reloads the realm from the properties source.
+     * <p/>
+     * The accounts and roles loaded so far are dropped first, so entries that are no longer present in the source
+     * (or whose roles and permissions were narrowed) are removed. If the source can't be loaded, the realm is left
+     * without the entries that were dropped.
+     */
+    void restart() {
         if (resourcePath == null || resourcePath.length() == 0) {
             throw new IllegalStateException("The resourcePath property is not set.  " +
                     "It must be set prior to this realm being initialized.");
@@ -293,7 +300,31 @@ public class PropertiesRealm extends TextConfigurationRealm implements Destroyab
         } catch (Exception e) {
             //ignored
         }
+        clearLoadedState();
         init();
+    }
+
+    private void clearLoadedState() {
+        USERS_LOCK.writeLock().lock();
+        ROLES_LOCK.writeLock().lock();
+        try {
+            users.clear();
+            roles.clear();
+        } finally {
+            ROLES_LOCK.writeLock().unlock();
+            USERS_LOCK.writeLock().unlock();
+        }
+        // init() would process the previous definitions again, which would bring the dropped entries back
+        setUserDefinitions(null);
+        setRoleDefinitions(null);
+        Cache<?, ?> authenticationCache = getAuthenticationCache();
+        if (authenticationCache != null) {
+            authenticationCache.clear();
+        }
+        Cache<?, ?> authorizationCache = getAuthorizationCache();
+        if (authorizationCache != null) {
+            authorizationCache.clear();
+        }
     }
 
     @SuppressWarnings("unchecked")
