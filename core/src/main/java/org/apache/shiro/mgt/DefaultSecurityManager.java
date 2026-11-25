@@ -375,6 +375,9 @@ public class DefaultSecurityManager extends SessionsSecurityManager {
         //(this is needed here in case rememberMe principals were resolved and they need to be stored in the
         //session, so we don't constantly rehydrate the rememberMe PrincipalCollection on every operation).
         //Added in 1.2:
+        if (context.isSessionCreationEnabled() && context.isRememberedPrincipals()) {
+            beforeSuccessfulLogin(subject);
+        }
         save(subject);
 
         return subject;
@@ -526,6 +529,7 @@ public class DefaultSecurityManager extends SessionsSecurityManager {
             if (!isEmpty(principals)) {
                 log.debug("Found remembered PrincipalCollection.  Adding to the context to be used " +
                         "for subject construction by the SubjectFactory.");
+                context.setRememberedPrincipals(true);
 
                 context.setPrincipals(principals);
 

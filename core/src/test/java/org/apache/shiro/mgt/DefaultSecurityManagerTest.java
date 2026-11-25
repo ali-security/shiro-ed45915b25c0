@@ -20,6 +20,8 @@ package org.apache.shiro.mgt;
 
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.UnavailableSecurityManagerException;
+import org.apache.shiro.authc.AuthenticationException;
+import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.config.Ini;
@@ -27,7 +29,11 @@ import org.apache.shiro.realm.text.IniRealm;
 import org.apache.shiro.session.ExpiredSessionException;
 import org.apache.shiro.session.Session;
 import org.apache.shiro.session.mgt.AbstractValidatingSessionManager;
+import org.apache.shiro.subject.PrincipalCollection;
+import org.apache.shiro.subject.SimplePrincipalCollection;
 import org.apache.shiro.subject.Subject;
+import org.apache.shiro.subject.SubjectContext;
+import org.apache.shiro.subject.support.DefaultSubjectContext;
 import org.apache.shiro.subject.support.DelegatingSubject;
 import org.apache.shiro.util.ThreadContext;
 import org.junit.After;
@@ -182,5 +188,98 @@ public class DefaultSecurityManagerTest extends AbstractSecurityManagerTest {
         AuthenticationToken token = new UsernamePasswordToken("guest", "guest");
         subject.login(token);
         assertEquals(sm, subject.getSecurityManager());
+    }
+
+    /**
+     * Session fixation via RememberMe (CVE-2026-74762): when a Subject is restored from a RememberMe identity, the
+     * existing (possibly attacker-supplied) session must be invalidated and a new session with a new ID created.
+     */
+    @Test
+    public void testRememberMeRestoreRotatesFixatedSession() {
+        // attacker obtains an anonymous session and plants its ID on the victim
+        Subject attacker = new Subject.Builder(sm).buildSubject();
+        Session fixatedSession = attacker.getSession();
+        Serializable fixatedSessionId = fixatedSession.getId();
+        assertNotNull(fixatedSessionId);
+        fixatedSession.setAttribute("key", "value");
+
+        // victim's request carries the fixated session ID and a valid RememberMe identity
+        sm.setRememberMeManager(new FixedRememberMeManager(new SimplePrincipalCollection("guest", "iniRealm")));
+        Subject victim = new Subject.Builder(sm).sessionId(fixatedSessionId).buildSubject();
+
+        assertTrue(victim.isRemembered());
+        assertEquals("guest", victim.getPrincipal());
+        Session victimSession = victim.getSession(false);
+        assertNotNull(victimSession);
+        assertNotEquals("session ID must change when the subject is restored from RememberMe",
+                fixatedSessionId, victimSession.getId());
+        assertEquals("session attributes must survive session rotation", "value", victimSession.getAttribute("key"));
+
+        // follow-up requests on the rotated session resolve the identity from the session and keep its ID
+        Subject resumed = new Subject.Builder(sm).sessionId(victimSession.getId()).buildSubject();
+        assertEquals("guest", resumed.getPrincipal());
+        assertEquals(victimSession.getId(), resumed.getSession(false).getId());
+
+        // attacker replays the fixated session ID: it must not resolve to the victim's remembered identity
+        sm.setRememberMeManager(null);
+        Subject hijacked = new Subject.Builder(sm).sessionId(fixatedSessionId).buildSubject();
+        assertNull(hijacked.getPrincipal());
+        assertNull(hijacked.getSession(false));
+    }
+
+    @Test
+    public void testExistingSessionNotRotatedWithoutRememberedIdentity() {
+        Subject subject = new Subject.Builder(sm).buildSubject();
+        Serializable sessionId = subject.getSession().getId();
+
+        Subject resumed = new Subject.Builder(sm).sessionId(sessionId).buildSubject();
+        assertFalse(resumed.isRemembered());
+        assertEquals(sessionId, resumed.getSession(false).getId());
+    }
+
+    @Test
+    public void testRememberedPrincipalsFlagOnSubjectContext() {
+        DefaultSubjectContext context = new DefaultSubjectContext();
+        assertFalse(context.isRememberedPrincipals());
+
+        DefaultSecurityManager rememberingSm = new DefaultSecurityManager();
+        rememberingSm.setRememberMeManager(
+                new FixedRememberMeManager(new SimplePrincipalCollection("guest", "iniRealm")));
+        SubjectContext resolved = rememberingSm.resolvePrincipals(context);
+        assertTrue(resolved.isRememberedPrincipals());
+        assertTrue(new DefaultSubjectContext(resolved).isRememberedPrincipals());
+
+        DefaultSubjectContext authenticated = new DefaultSubjectContext();
+        authenticated.setPrincipals(new SimplePrincipalCollection("guest", "iniRealm"));
+        assertFalse(rememberingSm.resolvePrincipals(authenticated).isRememberedPrincipals());
+        rememberingSm.destroy();
+    }
+
+    /**
+     * RememberMeManager that always returns the same remembered identity.
+     */
+    static class FixedRememberMeManager implements RememberMeManager {
+
+        private final PrincipalCollection principals;
+
+        FixedRememberMeManager(PrincipalCollection principals) {
+            this.principals = principals;
+        }
+
+        public PrincipalCollection getRememberedPrincipals(SubjectContext subjectContext) {
+            return principals;
+        }
+
+        public void forgetIdentity(SubjectContext subjectContext) {
+        }
+
+        public void onSuccessfulLogin(Subject subject, AuthenticationToken token, AuthenticationInfo info) {
+        }
+
+        public void onFailedLogin(Subject subject, AuthenticationToken token, AuthenticationException ae) {
+        }
+
+        public void onLogout(Subject subject) {
+        }
     }
 }

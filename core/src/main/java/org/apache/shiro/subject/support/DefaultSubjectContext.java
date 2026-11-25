@@ -64,6 +64,8 @@ public class DefaultSubjectContext extends MapContext implements SubjectContext 
 
     private static final String HOST = DefaultSubjectContext.class.getName() + ".HOST";
 
+    private static final String REMEMBERED_PRINCIPALS = DefaultSubjectContext.class.getName() + ".REMEMBERED_PRINCIPALS";
+
     public static final String SESSION_CREATION_ENABLED = DefaultSubjectContext.class.getName() + ".SESSION_CREATION_ENABLED";
 
     /**
@@ -275,5 +277,14 @@ public class DefaultSubjectContext extends MapContext implements SubjectContext 
         }
 
         return host;
+    }
+
+    public void setRememberedPrincipals(boolean remembered) {
+        put(REMEMBERED_PRINCIPALS, remembered);
+    }
+
+    public boolean isRememberedPrincipals() {
+        Boolean remembered = getTypedValue(REMEMBERED_PRINCIPALS, Boolean.class);
+        return remembered != null && remembered;
     }
 }
