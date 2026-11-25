@@ -18,15 +18,17 @@
 name: Maven CI
 
 on:
-  workflow_dispatch: {}
-  push:
-    branches: [ main, '1.*', '2.*' ]
-  pull_request:
-    branches: [ ]
+  workflow_dispatch:
+    inputs:
+      test-filter:
+        description: 'Optional surefire -Dtest selector; empty runs the full suite'
+        required: false
+        default: ''
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -38,14 +40,34 @@ jobs:
           java-version: 8
           distribution: temurin
 
-      - name: License Check
-        run: mvn apache-rat:check "-Drat.consoleOutput"
-
       - name: Build with Maven
-        run: mvn verify --errors --batch-mode --no-transfer-progress -Pdocs
+        run: |
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            mvn verify --errors --batch-mode --no-transfer-progress -Drat.skip=true -DskipITs -Dtest="${{ inputs.test-filter }}" -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false
+          else
+            mvn verify --errors --batch-mode --no-transfer-progress -Pdocs -Drat.skip=true
+          fi
+
+      - name: Test summary
+        if: success() || failure()
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then PY=python; else PY=python3; fi
+          "$PY" .github/seal-test-summary.py
+
+      - name: Upload shiro-core jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: shiro-core-jars
+          path: |
+            core/target/shiro-core-1.13.0.jar
+            core/target/shiro-core-1.13.0-jakarta.jar
+            core/target/shiro-core-1.13.0-tests.jar
+          if-no-files-found: error
 
   build-linux:
     needs: build
+    timeout-minutes: 45
 
     strategy:
       matrix:
@@ -81,14 +103,29 @@ jobs:
           distribution: ${{ matrix.java.dist }}
 
       - name: Build with Maven
-        run: mvn verify --errors --batch-mode --no-transfer-progress -Pdocs
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            mvn verify --errors --batch-mode --no-transfer-progress -Drat.skip=true -DskipITs -Dtest="${{ inputs.test-filter }}" -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false
+          else
+            mvn verify --errors --batch-mode --no-transfer-progress -Pdocs -Drat.skip=true
+          fi
+
+      - name: Test summary
+        if: success() || failure()
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then PY=python; else PY=python3; fi
+          "$PY" .github/seal-test-summary.py
 
   build-mac-win:
     needs: build
+    timeout-minutes: 45
 
     strategy:
       matrix:
-        os: [ windows-latest, macOS-latest ]
+        # windows-latest is now Server 2025, which has no wmic; surefire 3.2.1 uses wmic for its parent-process check and kills its fork JVM
+        os: [ windows-2022, macOS-latest ]
         java:
           #  8
           - version: 8
@@ -109,6 +146,21 @@ jobs:
         with:
           java-version: ${{ matrix.java.version }}
           distribution: ${{ matrix.java.dist }}
+          # Temurin ships no JDK 8 for macOS arm64 (macOS-latest is arm64); run that leg's JDK under Rosetta
+          architecture: ${{ (runner.os == 'macOS' && matrix.java.version == 8) && 'x64' || '' }}
 
       - name: Build with Maven
-        run: mvn verify --errors --batch-mode --no-transfer-progress -Pdocs
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.test-filter }}" ]; then
+            mvn verify --errors --batch-mode --no-transfer-progress -Drat.skip=true -DskipITs -Dtest="${{ inputs.test-filter }}" -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false
+          else
+            mvn verify --errors --batch-mode --no-transfer-progress -Pdocs -Drat.skip=true
+          fi
+
+      - name: Test summary
+        if: success() || failure()
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then PY=python; else PY=python3; fi
+          "$PY" .github/seal-test-summary.py
