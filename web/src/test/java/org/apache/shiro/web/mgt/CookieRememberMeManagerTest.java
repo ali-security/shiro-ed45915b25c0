@@ -24,6 +24,7 @@ import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.codec.Base64;
 import org.apache.shiro.crypto.CryptoException;
 import org.apache.shiro.subject.PrincipalCollection;
+import org.apache.shiro.subject.SimplePrincipalCollection;
 import org.apache.shiro.web.servlet.ShiroHttpServletRequest;
 import org.apache.shiro.web.servlet.SimpleCookie;
 import org.apache.shiro.web.subject.WebSubject;
@@ -46,6 +47,24 @@ import static org.junit.Assert.*;
  * @since 1.0
  */
 public class CookieRememberMeManagerTest {
+
+    private static final String CIPHER_KEY = "kPH+bIxk5D2deZiIxcaaaA==";
+
+    /**
+     * Creates the Base64 encoded, encrypted rememberMe cookie value that a {@link CookieRememberMeManager} using the
+     * {@link #CIPHER_KEY} writes for the given principals.
+     */
+    private static String createRememberMeCookieValue(PrincipalCollection principals) {
+        RememberMeCookieValueFactory factory = new RememberMeCookieValueFactory();
+        factory.setCipherKey(Base64.decode(CIPHER_KEY));
+        return factory.createCookieValue(principals);
+    }
+
+    static class RememberMeCookieValueFactory extends CookieRememberMeManager {
+        String createCookieValue(PrincipalCollection principals) {
+            return Base64.encodeToString(convertPrincipalsToBytes(principals));
+        }
+    }
 
     @Test
     public void onSuccessfulLogin() {
@@ -124,15 +143,9 @@ public class CookieRememberMeManagerTest {
 
         expect(mockRequest.getAttribute(ShiroHttpServletRequest.IDENTITY_REMOVED_KEY)).andReturn(null);
 
-        //The following base64 string was determined from the log output of the above 'onSuccessfulLogin' test.
-        //This will have to change any time the PrincipalCollection implementation changes:
-        final String userPCAesBase64 = "0o6DCfePYTjK4q579qzUFEfkeGRvbBOdKHp2y8/nGAltt1Vz8uW0Z8igeO" +
-                "Tq/yBmcw25f3Q0ui/Leg3x0iQZWhw9Bbu0mFHmHsGxEd6mPwtUpSegIjyX5c/kZpqnb7QLdajPWiczX8P" +
-                "Oc2Eku5+8ye1u38Y8uKlklHxcYCPh0pRiDSBxfjPsLaDfOpGbmPjZd4SVg68i/++TvUjqBNJyb+pDix3f" +
-                "PeuPvReWGcE50iovezVZrEfDOAQ0cZYW35ShypMWOmE9yZnb+p8++StDyAUegryyuIa4pjuRzfMh9D+sN" +
-                "F9tm/EnDC1VCer2S/a0AGlWAQiM7jrWt1sNinZcKIrvShaWI21tONJt8WhozNS2H72lk4p92rfLNHeglT" +
-                "xObxIYxLfTI9KiToSe1nYmpQmbBO8x1wWDkWBG//EqRvhgbIfQVqJp12T0fJC1nFuZuVhw/ZanaAZGDk8" +
-                "7aLMiw3T6FBZtWaspgvfH+0TJrTD8Ra386ekNXNN8JW8=";
+        //The rememberMe cookie value is created the same way the above 'onSuccessfulLogin' test creates it, so that it
+        //always matches the current remembered identity format:
+        final String userPCAesBase64 = createRememberMeCookieValue(new SimplePrincipalCollection("user", "test"));
 
         Cookie[] cookies = new Cookie[]{
                 new Cookie(CookieRememberMeManager.DEFAULT_REMEMBER_ME_COOKIE_NAME, userPCAesBase64)
@@ -142,7 +155,7 @@ public class CookieRememberMeManagerTest {
         replay(mockRequest);
 
         CookieRememberMeManager mgr = new CookieRememberMeManager();
-        mgr.setCipherKey( Base64.decode("kPH+bIxk5D2deZiIxcaaaA=="));
+        mgr.setCipherKey( Base64.decode(CIPHER_KEY));
         PrincipalCollection collection = mgr.getRememberedPrincipals(context);
 
         verify(mockRequest);
