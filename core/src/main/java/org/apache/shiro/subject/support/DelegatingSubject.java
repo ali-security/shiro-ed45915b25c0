@@ -377,7 +377,7 @@ public class DelegatingSubject implements Subject {
         }
     }
 
-    private void sessionStopped() {
+    public void sessionStopped() {
         this.session = null;
     }
 
