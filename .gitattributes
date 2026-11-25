@@ -17,3 +17,4 @@
 
 # CRLF source files: keep their line endings intact when exchanged as patches
 /core/src/main/java/org/apache/shiro/realm/ldap/DefaultLdapRealm.java -diff
+/core/src/test/java/org/apache/shiro/realm/ldap/DefaultLdapRealmTest.java -diff
