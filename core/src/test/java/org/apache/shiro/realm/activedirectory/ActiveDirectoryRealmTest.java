@@ -46,6 +46,7 @@ import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
 import javax.naming.ldap.LdapContext;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.easymock.EasyMock.anyObject;
@@ -164,6 +165,11 @@ public class ActiveDirectoryRealmTest {
             credentialsMatcher = new CredentialsMatcher() {
                 public boolean doCredentialsMatch(AuthenticationToken object, AuthenticationInfo object1) {
                     return true;
+                }
+
+                @Override
+                public Optional<AuthenticationInfo> createSimulatedCredentials() {
+                    return Optional.of(new SimpleAuthenticationInfo(USERNAME, PASSWORD, "ad"));
                 }
             };
 

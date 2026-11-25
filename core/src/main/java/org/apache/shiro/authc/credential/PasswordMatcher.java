@@ -18,6 +18,7 @@
  */
 package org.apache.shiro.authc.credential;
 
+import java.util.Optional;
 import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.crypto.hash.Hash;
@@ -66,6 +67,11 @@ public class PasswordMatcher implements CredentialsMatcher {
                 HashingPasswordService.class.getName() + " instance.  This is required to perform Hash " +
                 "object password comparisons.";
         throw new IllegalStateException(msg);
+    }
+
+    @Override
+    public Optional<AuthenticationInfo> createSimulatedCredentials() {
+        return SimpleCredentialsMatcher.makeSimulatedAuthenticationInfo(ensurePasswordService());
     }
 
     private PasswordService ensurePasswordService() {

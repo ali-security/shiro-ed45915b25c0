@@ -18,6 +18,7 @@
  */
 package org.apache.shiro.authc.credential;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
@@ -30,6 +31,13 @@ public class AllowAllCredentialsMatcherTest {
     @Test
     public void testBasic() {
         assertTrue(new AllowAllCredentialsMatcher().doCredentialsMatch(null, null));
+    }
+
+    @Test
+    public void testMultiRealm() {
+        AllowAllCredentialsMatcher matcher = new AllowAllCredentialsMatcher();
+        assertFalse("Simulated credentials should not match",
+                matcher.doCredentialsMatch(null, matcher.createSimulatedCredentials().get()));
     }
 
 }
